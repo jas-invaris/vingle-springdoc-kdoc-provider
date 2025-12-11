@@ -24,8 +24,8 @@ class ClassJavadoc private constructor(
     fun getOther(): List<OtherJavadoc> = kDoc.other.map { OtherJavadoc.fromKDoc(it) }
     
     /**
-     * Get record components (for compatibility with newer therapi versions)
-     * Returns empty list as Kotlin data classes don't have Java record components
+     * Get record components (for compatibility with newer therapi versions).
+     * Returns an empty list as Kotlin data classes don't have Java record components.
      */
     fun getRecordComponents(): List<ParamJavadoc> = emptyList()
 

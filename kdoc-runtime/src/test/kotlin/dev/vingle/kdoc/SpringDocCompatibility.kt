@@ -14,8 +14,8 @@ internal class SpringDocCompatibility {
      */
     @Test
     fun runEmpty() {
-        val exampleMethod = ExampleClass::class.java.getMethod("exampleMethod", String::class.java)
-        val exampleField = ExampleClass::class.java.getField("exampleField")
+        val exampleMethod = ExampleClass::class.java.getMethod(ExampleClass::exampleMethod.name, String::class.java)
+        val exampleField = ExampleClass::class.java.getField(ExampleClass::exampleField.name)
         val springDocProvider = SpringDocJavadocProvider()
 
         assertEquals("", springDocProvider.getClassJavadoc(ExampleClass::class.java))
@@ -31,14 +31,12 @@ internal class SpringDocCompatibility {
     }
 }
 
-@Suppress("unused") // Used by SpringDocCompatibility#runEmpty.
 internal class ExampleClass {
     @JvmField
     val exampleField = "value"
 
-    fun exampleMethod(exampleParam: String) = Unit
+    fun exampleMethod(@Suppress("unused") exampleParam: String) = Unit
 }
 
-@Suppress("unused") // Used by SpringDocCompatibility#runEmpty.
 @JvmRecord
 internal data class ExampleRecord(val value: String)
