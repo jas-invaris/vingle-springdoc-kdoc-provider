@@ -31,7 +31,7 @@ internal class SpringDocCompatibility {
     }
 }
 
-internal class ExampleClass {
+private class ExampleClass {
     @JvmField
     val exampleField = "value"
 
@@ -39,4 +39,4 @@ internal class ExampleClass {
 }
 
 @JvmRecord
-internal data class ExampleRecord(val value: String)
+private data class ExampleRecord(val value: String)

@@ -3,6 +3,7 @@ package dev.vingle.kdoc
 import dev.vingle.kdoc.model.ClassKDoc
 import dev.vingle.kdoc.model.FieldKDoc
 import kotlinx.serialization.json.Json
+import org.jetbrains.annotations.TestOnly
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import kotlin.reflect.KClass
@@ -21,7 +22,6 @@ object RuntimeKDoc {
         "double" to "Double", "float" to "Float", "byte" to "Byte",
         "short" to "Short", "char" to "Char"
     )
-    
     private val boxedToPrimitive = primitiveToBoxed.entries.associate { it.value to it.key }
     
     // Additional Kotlin-Java type mappings
@@ -30,7 +30,6 @@ object RuntimeKDoc {
         "Double" to "Double", "Float" to "Float", "Byte" to "Byte",
         "Short" to "Short", "Char" to "Character"
     )
-    
     private val javaToKotlinTypes = kotlinToJavaTypes.entries.associate { it.value to it.key }
     
     /**
@@ -54,9 +53,9 @@ object RuntimeKDoc {
         val classKDoc = try {
             val jsonText = resource.use { it.readBytes().decodeToString() }
             json.decodeFromString<ClassKDoc>(jsonText)
-        } catch (e: Exception) {
+        } catch (exception: Exception) {
             if (isDebugEnabled) // Log specific exception types if needed for debugging
-                println("DEBUG: Failed to parse class documentation for $fullyQualifiedClassName. $e")
+                println("DEBUG: Failed to parse documentation for class '$fullyQualifiedClassName': $exception")
             createEmptyClassKDoc(fullyQualifiedClassName)
         }
         
@@ -161,9 +160,15 @@ object RuntimeKDoc {
     private fun createEmptyClassKDoc(className: String): ClassKDoc {
         return ClassKDoc(
             name = className,
-            comment = dev.vingle.kdoc.model.CommentKDoc.empty()
+            comment = dev.vingle.kdoc.model.CommentKDoc.empty(),
         )
     }
+
+    /** This function can be used to manually clear the cache in order to free up some memory. */
+    fun clearCache(): Unit = classKDocCache.clear()
+
+    @get:TestOnly
+    internal val currentCacheSize get() = classKDocCache.size
 }
 
 /** Debug logging - can be enabled for troubleshooting */
