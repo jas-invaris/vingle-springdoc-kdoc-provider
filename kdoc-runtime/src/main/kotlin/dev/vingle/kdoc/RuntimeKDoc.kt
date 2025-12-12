@@ -1,7 +1,9 @@
 package dev.vingle.kdoc
 
 import dev.vingle.kdoc.model.ClassKDoc
+import dev.vingle.kdoc.model.FieldKDoc
 import kotlinx.serialization.json.Json
+import java.lang.reflect.Field
 import java.lang.reflect.Method
 import kotlin.reflect.KClass
 
@@ -37,9 +39,9 @@ object RuntimeKDoc {
     fun getKDoc(clazz: Class<*>): ClassKDoc {
         return getKDoc(clazz.name)
     }
-    
+
     /**
-     * Get KDoc documentation for a class by fully qualified name
+     * Get KDoc documentation for a class by its fully qualified name.
      */
     fun getKDoc(fullyQualifiedClassName: String): ClassKDoc {
         // Check cache first
@@ -52,8 +54,9 @@ object RuntimeKDoc {
         val classKDoc = try {
             val jsonText = resource.use { it.readBytes().decodeToString() }
             json.decodeFromString<ClassKDoc>(jsonText)
-        } catch (_: Exception) {
-            // Log specific exception types if needed for debugging
+        } catch (e: Exception) {
+            if (isDebugEnabled) // Log specific exception types if needed for debugging
+                println("DEBUG: Failed to parse class documentation for $fullyQualifiedClassName. $e")
             createEmptyClassKDoc(fullyQualifiedClassName)
         }
         
@@ -69,10 +72,7 @@ object RuntimeKDoc {
         val classKDoc = getKDoc(method.declaringClass)
         val paramTypeNames = method.parameterTypes.map { it.simpleName }
 
-        // Debug logging - can be enabled for troubleshooting
-        val debugEnabled = System.getProperty("kdoc.debug", "false").toBoolean()
-        
-        if (debugEnabled) {
+        if (isDebugEnabled) {
             println("DEBUG: Looking for method ${method.name} with param types: $paramTypeNames")
             println("DEBUG: Available methods in ${method.declaringClass.simpleName}:")
             classKDoc.methods.forEach { methodKDoc ->
@@ -84,8 +84,8 @@ object RuntimeKDoc {
             val nameMatch = methodKDoc.name == method.name
             val sizeMatch = methodKDoc.paramTypes.size == paramTypeNames.size
             val typeMatch = isParameterTypesMatch(methodKDoc.paramTypes, paramTypeNames)
-            
-            if (debugEnabled && nameMatch) {
+
+            if (isDebugEnabled && nameMatch) {
                 println("DEBUG: Checking ${methodKDoc.name}: nameMatch=$nameMatch, sizeMatch=$sizeMatch, typeMatch=$typeMatch")
                 if (sizeMatch && !typeMatch) {
                     println("DEBUG: Type mismatch details:")
@@ -108,7 +108,15 @@ object RuntimeKDoc {
     fun getKDoc(kclass: KClass<*>): ClassKDoc {
         return getKDoc(kclass.java)
     }
-    
+
+    /**
+     * Get KDoc documentation for a specific field.
+     */
+    fun getKDoc(field: Field): FieldKDoc {
+        val classKDoc = getKDoc(field.declaringClass)
+        return classKDoc.fields.singleOrNull { it.name == field.name } ?: FieldKDoc.empty(field.name)
+    }
+
     /**
      * Check if parameter types match, considering primitive vs boxed types
      */
@@ -156,4 +164,7 @@ object RuntimeKDoc {
             comment = dev.vingle.kdoc.model.CommentKDoc.empty()
         )
     }
-} 
+}
+
+/** Debug logging - can be enabled for troubleshooting */
+private val isDebugEnabled = System.getProperty("kdoc.debug", "false").toBoolean()
