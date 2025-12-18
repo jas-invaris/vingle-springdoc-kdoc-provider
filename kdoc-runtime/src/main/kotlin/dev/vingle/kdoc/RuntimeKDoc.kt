@@ -15,20 +15,28 @@ object RuntimeKDoc {
     
     private val json = Json { ignoreUnknownKeys = true }
     private val classKDocCache = mutableMapOf<String, ClassKDoc>()
-    
-    // Type mapping for primitive vs boxed types - organized in pairs for easier maintenance
+
+    /** Type mapping for primitive vs boxed types - organized in pairs for easier maintenance */
     private val primitiveToBoxed = mapOf(
-        "long" to "Long", "boolean" to "Boolean", "int" to "Int", 
+        "long" to "Long", "boolean" to "Boolean", "int" to "Int",
         "double" to "Double", "float" to "Float", "byte" to "Byte",
-        "short" to "Short", "char" to "Char"
+        "short" to "Short", "char" to "Char",
+
+        "long[]" to "LongArray", "boolean[]" to "BooleanArray", "int[]" to "IntArray",
+        "double[]" to "DoubleArray", "float[]" to "FloatArray", "byte[]" to "ByteArray",
+        "short[]" to "ShortArray", "char[]" to "CharArray",
     )
     private val boxedToPrimitive = primitiveToBoxed.entries.associate { it.value to it.key }
-    
-    // Additional Kotlin-Java type mappings
+
+    /** Additional Kotlin-Java type mappings */
     private val kotlinToJavaTypes = mapOf(
         "Int" to "Integer", "Long" to "Long", "Boolean" to "Boolean",
         "Double" to "Double", "Float" to "Float", "Byte" to "Byte",
-        "Short" to "Short", "Char" to "Character"
+        "Short" to "Short", "Char" to "Character",
+
+        "IntArray" to "int[]", "LongArray" to "long[]", "BooleanArray" to "boolean[]",
+        "DoubleArray" to "double[]", "FloatArray" to "float[]", "ByteArray" to "byte[]",
+        "ShortArray" to "short[]", "CharArray" to "char[]",
     )
     private val javaToKotlinTypes = kotlinToJavaTypes.entries.associate { it.value to it.key }
     
@@ -36,7 +44,7 @@ object RuntimeKDoc {
      * Get KDoc documentation for a class
      */
     fun getKDoc(clazz: Class<*>): ClassKDoc {
-        return getKDoc(clazz.name)
+        return getKDoc(fullyQualifiedClassName = clazz.kotlin.qualifiedName ?: clazz.name)
     }
 
     /**
@@ -164,9 +172,23 @@ object RuntimeKDoc {
         )
     }
 
-    /** This function can be used to manually clear the cache in order to free up some memory. */
+    /**
+     * This function can be used to manually clear the cache in order to free up some memory.
+     *
+     * ### Example
+     * One can provide their own `SpringDocJavadocProvider` implementation which calls this method.
+     * ```kotlin
+     * class MySpringDocJavadocProvider : SpringDocJavadocProvider {
+     *    override fun clearCache() {
+     *       super.clearCache()
+     *       RuntimeKDoc.clearCache()
+     *    }
+     * }
+     * ```
+     */
     fun clearCache(): Unit = classKDocCache.clear()
 
+    /** This method is used to test the [clearCache] function. */
     @get:TestOnly
     internal val currentCacheSize get() = classKDocCache.size
 }

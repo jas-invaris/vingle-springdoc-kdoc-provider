@@ -32,7 +32,7 @@ import kotlinx.serialization.json.Json
 class KDocProcessor(
     private val codeGenerator: CodeGenerator,
     private val logger: KSPLogger,
-    private val options: Map<String, String>
+    options: Map<String, String>,
 ) : SymbolProcessor {
 
     private val json = Json {
@@ -45,6 +45,11 @@ class KDocProcessor(
     private val forceRegenerate = options["kdoc.force-regenerate"]?.toBoolean() ?: false
     private val debugMode = options["kdoc.debug"]?.toBoolean() ?: false
     private val targetAnnotation = "org.springframework.web.bind.annotation.RestController"
+
+    /**
+     * By default, only Spring `RestController` annotated classes are considered for processing. Setting this parameter
+     * to `"true"` disables that requirement, meaning all classes will be processed.
+     */
     private val targetAllFiles = options["kdoc.all-files"]?.toBoolean() ?: false
 
     // Thread-safe collections for concurrent access
@@ -64,15 +69,7 @@ class KDocProcessor(
             }
         }
 
-        val symbols = run {
-            val targets: Sequence<KSClassDeclaration> = if (targetAllFiles) {
-                resolver.getNewFiles().flatMap(KSFile::declarations).map(::findClassDeclaration).filterNotNull()
-                    .distinct()
-            } else {
-                resolver.getSymbolsWithAnnotation(targetAnnotation).filterIsInstance<KSClassDeclaration>()
-            }
-            targets.filter(::shouldProcessClass)
-        }
+        val symbols = getSymbolsToProcess(resolver)
 
         if (debugMode) {
             logger.info("Found ${symbols.count()} classes to process")
@@ -95,6 +92,28 @@ class KDocProcessor(
         }
 
         return emptyList()
+    }
+
+    /** This looks up all classes that should be processed for the given configuration parameters. */
+    private fun getSymbolsToProcess(resolver: Resolver): Sequence<KSClassDeclaration> {
+        /** @return The given class and all classes that it contains. There is no depth limit for this lookup. */
+        fun withContainingClasses(declaration: KSClassDeclaration): Sequence<KSClassDeclaration> {
+            var newContainingClasses: Set<KSClassDeclaration> = setOf(declaration)
+            val allFoundDeclarations = mutableSetOf(declaration)
+            while (newContainingClasses.isNotEmpty()) {
+                newContainingClasses = newContainingClasses.flatMap(KSClassDeclaration::declarations)
+                    .filterIsInstance<KSClassDeclaration>().toSet()
+                allFoundDeclarations.addAll(newContainingClasses)
+            }
+            return allFoundDeclarations.asSequence()
+        }
+
+        return if (targetAllFiles) {
+            resolver.getNewFiles().flatMap(KSFile::declarations).mapNotNull(::findClassDeclaration)
+                .flatMap(::withContainingClasses).distinct()
+        } else {
+            resolver.getSymbolsWithAnnotation(targetAnnotation).filterIsInstance<KSClassDeclaration>()
+        }.filter(::shouldProcessClass)
     }
 
     private fun shouldProcessClass(classDeclaration: KSClassDeclaration): Boolean {
@@ -226,18 +245,15 @@ class KDocProcessor(
      * 2. A `@param` tag for the property declared on the class.
      */
     private fun processFields(classDeclaration: KSClassDeclaration, classDoc: ParsedKDoc): List<FieldKDoc> {
-        return classDeclaration.declarations.filterIsInstance<KSPropertyDeclaration>()
-            .map { propertyDeclaration ->
-                var comment = parseKDocComment(propertyDeclaration.docString).mainComment
-                if (comment.isEmpty()) {
-                    classDoc.params.singleOrNull { it.name == propertyDeclaration.simpleName.getShortName() }
-                        ?.let { comment = it.comment }
-                }
-                FieldKDoc(
-                    name = propertyDeclaration.simpleName.asString(),
-                    comment = comment,
-                )
-            }.toList()
+        return classDeclaration.declarations.filterIsInstance<KSPropertyDeclaration>().map { property ->
+            val comment = parseKDocComment(property.docString).mainComment.takeUnless(CommentKDoc::isEmpty)
+                ?: classDoc.params.singleOrNull { it.name == property.simpleName.getShortName() }?.comment
+                ?: CommentKDoc.empty()
+            FieldKDoc(
+                name = property.simpleName.asString(),
+                comment = comment,
+            )
+        }.toList()
     }
 
     /**

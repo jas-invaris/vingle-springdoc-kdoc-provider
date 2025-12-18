@@ -2,19 +2,17 @@ package dev.vingle.kdoc.processor
 
 import com.tschuchort.compiletesting.*
 import dev.vingle.kdoc.ExampleClassWithDocs
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.*
 import org.jetbrains.kotlin.build.isModuleMappingFile
 import org.jetbrains.kotlin.compiler.plugin.ExperimentalCompilerApi
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.function.Executable
 import java.io.File
 import kotlin.reflect.KFunction
 
 @OptIn(ExperimentalCompilerApi::class)
-class GenerateDocumentationFile {
+class GenerateDocumentationFileTest {
     private val testLanguageVersion = "2.2"
 
     @Test
@@ -42,7 +40,10 @@ class GenerateDocumentationFile {
                 sources = listOf(getExampleClassSourceFile())
             }
             symbolProcessorProviders = mutableListOf(KDocProcessorProvider())
-            kspProcessorOptions = mutableMapOf("kdoc.all-files" to true.toString(), "kdoc.debug" to true.toString())
+            kspProcessorOptions = mutableMapOf(
+                "kdoc.all-files" to true.toString(),
+                "kdoc.debug" to true.toString(),
+            )
         }
         val result = compilation.compile()
 
@@ -56,6 +57,7 @@ class GenerateDocumentationFile {
         val generatedJsonFiles = result.sourcesGeneratedBySymbolProcessor.toList()
         assertEquals(1, generatedJsonFiles.size)
         assertEquals("${ExampleClassWithDocs::class.simpleName}.json", generatedJsonFiles.firstOrNull()?.name)
+
         val generatedJsonFile = generatedJsonFiles.first()
         checkGeneratedDocumentationFile(generatedJsonFile)
     }
@@ -104,16 +106,63 @@ class GenerateDocumentationFile {
         }
     }
 
-    @Test
-    fun `only processes RestControllers by default`() {
-        TODO()
-    }
-
     private fun getExampleClassSourceFile(): SourceFile {
         val classFilePath = "../kdoc-runtime/src/testFixtures/kotlin/${
             ExampleClassWithDocs::class.java.canonicalName!!.replace('.', '/')
         }.kt"
         val sourceCode = File(classFilePath).readText()
         return SourceFile.kotlin(ExampleClassWithDocs::class.simpleName!! + ".kt", sourceCode)
+    }
+
+    @Test
+    fun nestedClasses() {
+        val nestedSource = SourceFile.kotlin(
+            "Nested.kt",
+            """
+            /** Layer #1 */
+            class A {
+                /** Layer #2 */
+                class B {
+                    /** Layer #3 */
+                    class C
+                }
+            }
+            """,
+        )
+        val compilation = KotlinCompilation().apply {
+            configureKsp {
+                languageVersion = testLanguageVersion
+                sources = listOf(nestedSource)
+            }
+            symbolProcessorProviders = mutableListOf(KDocProcessorProvider())
+            kspProcessorOptions = mutableMapOf("kdoc.all-files" to true.toString())
+        }
+        val result = compilation.compile()
+
+        val generatedJsonFiles = result.sourcesGeneratedBySymbolProcessor.toList()
+        assertIterableEquals(
+            listOf("A", "B", "C"),
+            generatedJsonFiles.map(File::nameWithoutExtension).sorted(),
+        )
+        assertAll(
+            "The generated files should each contain their own class documentation.",
+            generatedJsonFiles.map { file ->
+                Executable {
+                    val json = Json.parseToJsonElement(file.readText())
+
+                    val (expectedName, expectedClassDocumentation) = when (file.nameWithoutExtension) {
+                        "A" -> Pair("A", "Layer #1")
+                        "B" -> Pair("A.B", "Layer #2")
+                        "C" -> Pair("A.B.C", "Layer #3")
+                        else -> fail("Unexpected class encountered: ${file.name}")
+                    }
+                    assertEquals(expectedName, json.jsonObject["name"]?.jsonPrimitive?.contentOrNull)
+                    assertEquals(
+                        expectedClassDocumentation,
+                        json.jsonObject["comment"]?.jsonObject["text"]?.jsonPrimitive?.contentOrNull,
+                    )
+                }
+            },
+        )
     }
 }
