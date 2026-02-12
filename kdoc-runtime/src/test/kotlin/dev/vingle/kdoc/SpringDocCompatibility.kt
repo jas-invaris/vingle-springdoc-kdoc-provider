@@ -4,7 +4,6 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertNull
 import org.springdoc.core.providers.SpringDocJavadocProvider
-import kotlin.collections.emptyMap
 
 /** This test class ensures that the compatibility layer code works with SpringDoc. */
 internal class SpringDocCompatibility {

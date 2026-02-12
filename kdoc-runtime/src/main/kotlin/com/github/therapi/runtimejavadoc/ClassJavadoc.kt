@@ -22,14 +22,16 @@ class ClassJavadoc private constructor(
     fun getSeeAlso(): List<SeeAlsoJavadoc> = kDoc.seeAlso.map { SeeAlsoJavadoc.fromKDoc(it) }
     
     fun getOther(): List<OtherJavadoc> = kDoc.other.map { OtherJavadoc.fromKDoc(it) }
+
+    fun getFields(): List<FieldJavadoc> {
+        return emptyList()
+    }
     
     /**
      * Get record components (for compatibility with newer therapi versions).
      * Returns an empty list as Kotlin data classes don't have Java record components.
      */
     fun getRecordComponents(): List<ParamJavadoc> = emptyList()
-
-    fun getFields(): List<FieldJavadoc> = kDoc.fields.map { FieldJavadoc.fromKDoc(it) }
 
     companion object {
         @JvmStatic
